@@ -1,0 +1,61 @@
+{
+  "source": "https://www.youtube.com/watch?v=2_gVzBuDrNk",
+  "title": "ALGUÉM PARE ✋ ESSE HOMEM",
+  "duration": 622,
+  "height": 1080,
+  "fps": 60.0,
+  "formats": 44,
+  "combined": [
+    {
+      "name": "ALGUÉM PARE _ ESSE HOMEM.mkv",
+      "size": 234727489
+    }
+  ],
+  "probe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "codec_type": "video",
+        "width": 1920,
+        "height": 1080,
+        "avg_frame_rate": "60/1"
+      },
+      {
+        "codec_name": "aac",
+        "codec_type": "audio",
+        "avg_frame_rate": "0/0"
+      }
+    ],
+    "format": {
+      "duration": "621.993000"
+    }
+  },
+  "video": [
+    {
+      "name": "Kerski teste autorizado-video.mkv",
+      "size": 224587684
+    }
+  ],
+  "audio": [
+    {
+      "name": "Kerski teste autorizado-audio.mka",
+      "size": 10144856
+    }
+  ],
+  "separate": [
+    {
+      "name": "Kerski teste autorizado-video.mkv",
+      "size": 224587684
+    },
+    {
+      "name": "Kerski teste autorizado-audio.mka",
+      "size": 10144856
+    },
+    {
+      "name": "Kerski teste autorizado.zip",
+      "size": 234732846
+    }
+  ]
+}

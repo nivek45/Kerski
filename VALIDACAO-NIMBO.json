@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-28",
+  "source": "https://www.youtube.com/watch?v=2_gVzBuDrNk",
+  "selectedQuality": "360p • 30 fps • avc1.4D401E",
+  "downloadBytes": 34722159,
+  "petCompletionState": "excited",
+  "browserErrors": [],
+  "infrastructure": "Real Next.js/FastAPI/yt-dlp/FFmpeg/FFprobe; FakeRedis and test dispatcher, not production Redis/Docker"
+}

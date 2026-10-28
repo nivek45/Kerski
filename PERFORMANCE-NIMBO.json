@@ -1,0 +1,18 @@
+[
+  {
+    "viewport": "desktop",
+    "updatesInTwoSeconds": 58,
+    "pageTaskSeconds": 0.075604,
+    "heapBefore": 4802444,
+    "heapAfterTwelveMounts": 5208336,
+    "errors": []
+  },
+  {
+    "viewport": "mobile",
+    "updatesInTwoSeconds": 58,
+    "pageTaskSeconds": 0.078903,
+    "heapBefore": 4290588,
+    "heapAfterTwelveMounts": 4687472,
+    "errors": []
+  }
+]

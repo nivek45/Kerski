@@ -1,0 +1,65 @@
+services:
+  web:
+    build: ./frontend
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      API_ORIGIN: http://api:8000
+    networks: [internal, edge]
+    depends_on: [api]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+  api:
+    build: ./backend
+    environment: &backend_env
+      REDIS_URL: redis://redis:6379/0
+      MEDIA_ROOT: /data
+      MEDIA_PROXY: http://egress:8888
+      RETENTION_SECONDS: 3600
+      MAX_BYTES: 2147483648
+      MAX_DURATION: 7200
+    volumes: [media:/data:ro]
+    networks: [internal]
+    depends_on: [redis]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    mem_limit: 256m
+  worker:
+    build: ./backend
+    command: [python, -m, kerski.worker]
+    environment: *backend_env
+    volumes: [media:/data]
+    networks: [internal]
+    depends_on: [redis, egress]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:size=128m]
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    restart: unless-stopped
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    volumes: [queue:/data]
+    networks: [internal]
+    mem_limit: 192m
+  egress:
+    image: python:3.12-slim
+    command: [python, /app/egress.py]
+    volumes: [./infra/egress.py:/app/egress.py:ro]
+    networks: [internal, edge]
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+networks:
+  internal:
+    internal: true
+  edge: {}
+volumes:
+  media: {}
+  queue: {}
