@@ -5,14 +5,15 @@ import {Minus,MoreHorizontal,PawPrint,RotateCcw,X} from 'lucide-react';
 import {Character} from './character';
 import {blendPose,moods,neutral,poseFor,type Mood,type Pose} from './motion';
 import {PET_EVENT,type PetEvent} from './events';
+import {useWander} from './wander';
 import './pet.css';
 
-type Preferences={mode:'full'|'mini'|'hidden';size:'small'|'normal';reduced:boolean;sound:boolean;coat:'graphite'|'mist';position:number};
-const defaults:Preferences={mode:'full',size:'normal',reduced:false,sound:false,coat:'graphite',position:0};
-const labels:Record<Mood,string>={idle:'Observando',curious:'Curioso',happy:'Contente',excited:'Comemorando',confused:'Intrigado',sad:'Um pouco triste',sleepy:'Cochilando',surprised:'Surpreso',playful:'Brincando'};
+type Preferences={mode:'full'|'mini'|'hidden';size:'small'|'normal';reduced:boolean;sound:boolean;coat:'graphite'|'mist';x:number;y:number;roam:boolean};
+const defaults:Preferences={mode:'full',size:'normal',reduced:false,sound:false,coat:'graphite',x:.97,y:.94,roam:true};
+const labels:Record<Mood,string>={idle:'Observando',walking:'Passeando',curious:'Curioso',happy:'Contente',excited:'Comemorando',confused:'Intrigado',sad:'Um pouco triste',sleepy:'Cochilando',surprised:'Surpreso',playful:'Brincando'};
 const reactions:Partial<Record<PetEvent,Mood>>={link:'curious',analyze:'curious',identified:'happy',download:'curious',done:'excited',invalid:'confused',failed:'sad',theme:'surprised',cancel:'idle'};
 function readPreferences():Preferences{
-  try{const p=JSON.parse(localStorage.getItem('kerski.pet.v1')||'{}');return {mode:['full','mini','hidden'].includes(p.mode)?p.mode:'full',size:p.size==='small'?'small':'normal',reduced:p.reduced===true,sound:p.sound===true,coat:p.coat==='mist'?'mist':'graphite',position:typeof p.position==='number'&&Number.isFinite(p.position)?Math.max(0,Math.min(1,p.position)):0}}catch{return {...defaults}}
+  try{const p=JSON.parse(localStorage.getItem('kerski.pet.v1')||'{}');return {mode:['full','mini','hidden'].includes(p.mode)?p.mode:'full',size:p.size==='small'?'small':'normal',reduced:p.reduced===true,sound:p.sound===true,coat:p.coat==='mist'?'mist':'graphite',x:typeof p.x==='number'&&Number.isFinite(p.x)?Math.max(0,Math.min(1,p.x)):.97,y:typeof p.y==='number'&&Number.isFinite(p.y)?Math.max(0,Math.min(1,p.y)):(matchMedia('(max-width: 900px)').matches?.18:.94),roam:p.roam!==false}}catch{return {...defaults}}
 }
 
 export default function Nimbo(){
@@ -20,8 +21,9 @@ export default function Nimbo(){
   const [systemReduced,setSystemReduced]=useState(false);const [dragging,setDragging]=useState(false);
   const station=useRef<HTMLElement>(null);const stage=useRef<HTMLButtonElement>(null);const prefsRef=useRef(prefs);
   const trigger=useRef<(m:Mood,force?:boolean)=>void>(()=>{});const look=useRef({x:0,y:0});const activity=useRef(0);const busy=useRef(false);
-  const drag=useRef<{id:number;x:number;y:number;position:number;moved:boolean}|null>(null);const offset=useRef(0);const lastTouch=useRef(-Infinity);const petting=useRef({x:0,y:0,time:0,distance:0});const audio=useRef<AudioContext|null>(null);
+  const drag=useRef<{id:number;x:number;y:number;originX:number;originY:number;moved:boolean}|null>(null);const lastTouch=useRef(-Infinity);const petting=useRef({x:0,y:0,time:0,distance:0});const audio=useRef<AudioContext|null>(null);
   const reduced=prefs.reduced||systemReduced;
+  const wander=useWander(station,{ready,mode:prefs.mode,x:prefs.x,y:prefs.y,roam:prefs.roam,reduced,paused:dragging||menu||busy.current,mood},trigger,activity);
   useEffect(()=>{setPrefs(readPreferences());setReady(true);activity.current=performance.now();const mq=matchMedia('(prefers-reduced-motion: reduce)');const change=()=>setSystemReduced(mq.matches);change();mq.addEventListener('change',change);return()=>mq.removeEventListener('change',change)},[]);
   useEffect(()=>{prefsRef.current=prefs;if(!ready)return;try{localStorage.setItem('kerski.pet.v1',JSON.stringify(prefs))}catch{}document.body.dataset.pet=prefs.mode;return()=>{delete document.body.dataset.pet}},[prefs,ready]);
   useEffect(()=>{
@@ -61,7 +63,7 @@ export default function Nimbo(){
     const follow=(e:PointerEvent)=>{wake();if(!stage.current||reduced)return;const r=stage.current.getBoundingClientRect();look.current={x:Math.max(-1,Math.min(1,(e.clientX-r.x-r.width/2)/280)),y:Math.max(-1,Math.min(1,(e.clientY-r.y-r.height/2)/240))}};
     const behavior=setInterval(()=>{
       if(document.hidden)return;const now=performance.now();
-      if(current!=='idle'&&current!=='sleepy'&&now-started>moods[current].duration)react(busy.current?'curious':'idle',true);
+      if(current!=='walking'&&current!=='idle'&&current!=='sleepy'&&now-started>moods[current].duration)react(busy.current?'curious':'idle',true);
       if(!busy.current&&now-activity.current>50000&&current==='idle')react('sleepy',true);
       if(!busy.current&&!reduced&&current==='idle'&&now>nextPlay){nextPlay=now+26000+Math.random()*24000;react(Math.random()<.15?'surprised':'playful')}
     },1000);
@@ -70,28 +72,26 @@ export default function Nimbo(){
   },[ready,prefs.mode,reduced]);
 
   function update(patch:Partial<Preferences>){setPrefs(p=>({...p,...patch}))}
-  function position(value:number){offset.current=value;station.current?.style.setProperty('--pet-position',String(value))}
-  useEffect(()=>position(prefs.position),[prefs.position,ready,prefs.mode]);
   function chirp(){
     if(!prefsRef.current.sound)return;
     try{const ctx=audio.current||new AudioContext();audio.current=ctx;void ctx.resume();const oscillator=ctx.createOscillator(),gain=ctx.createGain();oscillator.type='sine';oscillator.frequency.setValueAtTime(620,ctx.currentTime);oscillator.frequency.exponentialRampToValueAtTime(930,ctx.currentTime+.08);gain.gain.setValueAtTime(.0001,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.025,ctx.currentTime+.02);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.16);oscillator.connect(gain);gain.connect(ctx.destination);oscillator.start();oscillator.stop(ctx.currentTime+.17);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect()}}catch{}
   }
   function touch(){if(performance.now()-lastTouch.current<650)return;lastTouch.current=performance.now();activity.current=performance.now();const choices:Mood[]=['happy','surprised','playful'];trigger.current(Math.random()<.08?'excited':choices[Math.floor(Math.random()*choices.length)],true);chirp()}
-  function down(e:React.PointerEvent<HTMLButtonElement>){if(e.button!==0)return;drag.current={id:e.pointerId,x:e.clientX,y:e.clientY,position:offset.current,moved:false};e.currentTarget.setPointerCapture(e.pointerId)}
+  function down(e:React.PointerEvent<HTMLButtonElement>){if(e.button!==0)return;drag.current={id:e.pointerId,x:e.clientX,y:e.clientY,originX:wander.point.current.x,originY:wander.point.current.y,moved:false};e.currentTarget.setPointerCapture(e.pointerId)}
   function move(e:React.PointerEvent<HTMLButtonElement>){
     const d=drag.current;
-    if(d){const delta=e.clientY-d.y;if(Math.hypot(e.clientX-d.x,delta)>6){d.moved=true;setDragging(true);const mobile=matchMedia('(max-width: 900px)').matches;const travel=mobile?36:Math.max(1,innerHeight-246);position(Math.max(0,Math.min(1,d.position-delta/travel)));trigger.current('surprised');}return;}
+    if(d){const delta=e.clientY-d.y;if(Math.hypot(e.clientX-d.x,delta)>6){d.moved=true;setDragging(true);wander.place(d.originX+e.clientX-d.x,d.originY+delta);trigger.current('surprised');}return;}
     if(e.pointerType!=='mouse')return;const now=performance.now(),last=petting.current;const distance=Math.hypot(e.clientX-last.x,e.clientY-last.y);const gentle=now-last.time<200&&distance>1&&distance<35;
     petting.current={x:e.clientX,y:e.clientY,time:now,distance:gentle?last.distance+distance:0};if(petting.current.distance>100){trigger.current('happy');petting.current.distance=0}
   }
-  function up(e:React.PointerEvent<HTMLButtonElement>){const d=drag.current;if(!d)return;drag.current=null;setDragging(false);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(d.moved)update({position:offset.current});else touch()}
+  function up(e:React.PointerEvent<HTMLButtonElement>){const d=drag.current;if(!d)return;drag.current=null;setDragging(false);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);if(d.moved){update(wander.normalized());trigger.current('happy',true);activity.current=performance.now()}else touch()}
   if(!ready||prefs.mode==='hidden')return null;
   return <aside ref={station} className={`pet-station ${prefs.mode==='mini'?'pet-mini':''}`} data-testid="nimbo" data-mood={mood} data-reduced={reduced} data-dragging={dragging} data-size={prefs.size} data-coat={prefs.coat} aria-label="Nimbo, companheiro virtual">
     {prefs.mode==='mini'?<button className="pet-restore" onClick={()=>update({mode:'full'})} aria-label="Restaurar Nimbo"><PawPrint size={17}/><span>Nimbo</span></button>:<>
       <div className="pet-name"><strong>Nimbo</strong><span>{labels[mood]}</span></div>
-      <button ref={stage} className="pet-stage" aria-label="Brincar com Nimbo" title="Clique para brincar. Arraste para reposicionar." onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={e=>{drag.current=null;setDragging(false);position(prefs.position);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}} onClick={e=>{if(e.detail===0)touch()}} onContextMenu={e=>{e.preventDefault();setMenu(true)}}><Character/></button>
-      <div className="pet-controls"><button aria-label="Opções do Nimbo" aria-expanded={menu} aria-controls="nimbo-options" onClick={()=>setMenu(!menu)}><MoreHorizontal size={17}/></button><button aria-label="Minimizar Nimbo" onClick={()=>{setMenu(false);update({mode:'mini'})}}><Minus size={15}/></button></div>
+      <button ref={stage} className="pet-stage" aria-label="Brincar com Nimbo" title="Clique para brincar. Arraste livremente ou use as setas do teclado." onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={e=>{drag.current=null;setDragging(false);update(wander.normalized());if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}} onKeyDown={e=>{const steps:Record<string,[number,number]>={ArrowLeft:[-24,0],ArrowRight:[24,0],ArrowUp:[0,-24],ArrowDown:[0,24]};const step=steps[e.key];if(step){e.preventDefault();wander.place(wander.point.current.x+step[0],wander.point.current.y+step[1]);update(wander.normalized())}}} onClick={e=>{if(e.detail===0)touch()}} onContextMenu={e=>{e.preventDefault();setMenu(true)}}><span className="pet-facing"><Character/></span></button>
+      <div className="pet-controls"><button aria-label="Esconder Nimbo" onClick={()=>{setMenu(false);update({mode:'hidden'})}}><X size={14}/></button><button aria-label="Opções do Nimbo" aria-expanded={menu} aria-controls="nimbo-options" onClick={()=>setMenu(!menu)}><MoreHorizontal size={17}/></button><button aria-label="Minimizar Nimbo" onClick={()=>{setMenu(false);update({mode:'mini'})}}><Minus size={15}/></button></div>
     </>}
-    {menu&&prefs.mode==='full'?createPortal(<section id="nimbo-options" className="pet-menu" aria-label="Preferências do Nimbo" onKeyDown={e=>{if(e.key==='Escape')setMenu(false)}}><div className="pet-menu-title"><strong>Do jeito dele. Do seu jeito.</strong><button aria-label="Fechar opções do Nimbo" onClick={()=>setMenu(false)}><X size={16}/></button></div><p>Carinho com o cursor. Um toque para brincar. Arraste para mudar de lugar.</p><label>Tamanho<select aria-label="Tamanho" value={prefs.size} onChange={e=>update({size:e.target.value as Preferences['size']})}><option value="normal">Normal</option><option value="small">Pequeno</option></select></label><label>Pelagem<select aria-label="Pelagem" value={prefs.coat} onChange={e=>update({coat:e.target.value as Preferences['coat']})}><option value="graphite">Grafite</option><option value="mist">Névoa</option></select></label><label className="pet-check"><input type="checkbox" checked={prefs.reduced} onChange={e=>update({reduced:e.target.checked})}/>Reduzir animações</label>{systemReduced?<p>A preferência de movimento reduzido do sistema está ativa.</p>:null}<label className="pet-check"><input type="checkbox" checked={prefs.sound} onChange={e=>update({sound:e.target.checked})}/>Som suave ao tocar</label><button className="pet-reset" onClick={()=>{position(0);update({position:0})}}><RotateCcw size={14}/>Restaurar posição</button><button className="pet-hide" onClick={()=>{setMenu(false);update({mode:'hidden'})}}>Ocultar Nimbo</button><p>Para trazê-lo de volta, abra as configurações do Kerski.</p></section>,document.body):null}
+    {menu&&prefs.mode==='full'?createPortal(<section id="nimbo-options" className="pet-menu" aria-label="Preferências do Nimbo" onKeyDown={e=>{if(e.key==='Escape')setMenu(false)}}><div className="pet-menu-title"><strong>Do jeito dele. Do seu jeito.</strong><button aria-label="Fechar opções do Nimbo" onClick={()=>setMenu(false)}><X size={16}/></button></div><p>Carinho com o cursor. Um toque para brincar. Arraste em qualquer direção ou use as setas com o pet selecionado.</p><label>Tamanho<select aria-label="Tamanho" value={prefs.size} onChange={e=>update({size:e.target.value as Preferences['size']})}><option value="normal">Normal</option><option value="small">Pequeno</option></select></label><label>Pelagem<select aria-label="Pelagem" value={prefs.coat} onChange={e=>update({coat:e.target.value as Preferences['coat']})}><option value="graphite">Grafite</option><option value="mist">Névoa</option></select></label><label className="pet-check"><input type="checkbox" checked={prefs.roam} onChange={e=>update({roam:e.target.checked})}/>Passear pela tela</label><label className="pet-check"><input type="checkbox" checked={prefs.reduced} onChange={e=>update({reduced:e.target.checked})}/>Reduzir animações</label>{systemReduced?<p>A preferência de movimento reduzido do sistema está ativa.</p>:null}<label className="pet-check"><input type="checkbox" checked={prefs.sound} onChange={e=>update({sound:e.target.checked})}/>Som suave ao tocar</label><button className="pet-reset" onClick={()=>{update({x:.97,y:matchMedia('(max-width: 900px)').matches?.18:.94})}}><RotateCcw size={14}/>Restaurar posição</button><button className="pet-hide" onClick={()=>{setMenu(false);update({mode:'hidden'})}}>Ocultar Nimbo</button><p>Para trazê-lo de volta, abra as configurações do Kerski.</p></section>,document.body):null}
   </aside>;
 }

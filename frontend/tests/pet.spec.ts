@@ -34,15 +34,39 @@ test('movimento reduzido não mantém loop de renderização',async({page})=>{
   const before=await pet.getAttribute('data-frames');await page.waitForTimeout(1200);expect(await pet.getAttribute('data-frames')).toBe(before);
 });
 
-test('arrasto limitado, menu visível e ausência de sobreposição',async({page})=>{
+test('arrasto limitado e menu visível',async({page})=>{
   await page.goto('/');const actor=page.getByRole('button',{name:'Brincar com Nimbo'});await expect(actor).toBeVisible();const box=(await actor.boundingBox())!;
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2,0,{steps:12});await page.mouse.up();
   const after=(await actor.boundingBox())!;expect(after.y).toBeGreaterThanOrEqual(0);expect(after.x).toBeGreaterThanOrEqual(0);
   await page.getByRole('button',{name:'Opções do Nimbo'}).click();const menu=(await page.getByRole('region',{name:'Preferências do Nimbo'}).boundingBox())!;expect(menu.y).toBeGreaterThanOrEqual(0);
   await page.getByRole('button',{name:'Fechar opções do Nimbo'}).click();await page.getByRole('button',{name:'Analisar link'}).scrollIntoViewIfNeeded();
-  const submit=(await page.getByRole('button',{name:'Analisar link'}).boundingBox())!,pet=(await actor.boundingBox())!;
-  expect(pet.x+pet.width<=submit.x||pet.x>=submit.x+submit.width||pet.y+pet.height<=submit.y||pet.y>=submit.y+submit.height).toBeTruthy();
+  // Manual placement is free; hiding the pet always restores access underneath.
+  await page.getByRole('button',{name:'Esconder Nimbo',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Analisar link'})).toBeEnabled();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+});
+
+test('arrasto em dois eixos, persistência e setas',async({page})=>{
+  await page.addInitScript(()=>{if(!localStorage.getItem('kerski.pet.v1'))localStorage.setItem('kerski.pet.v1',JSON.stringify({x:.97,y:.85,roam:false}))});
+  await page.goto('/');const actor=page.getByRole('button',{name:'Brincar com Nimbo'});await expect(actor).toBeVisible();
+  const before=(await actor.boundingBox())!;
+  await page.mouse.move(before.x+60,before.y+60);await page.mouse.down();await page.mouse.move(before.x-40,before.y-80,{steps:10});await page.mouse.up();
+  const after=(await actor.boundingBox())!;expect(after.x).toBeLessThan(before.x-50);expect(after.y).toBeLessThan(before.y-80);
+  await page.reload();await expect(actor).toBeVisible();const saved=(await actor.boundingBox())!;expect(Math.abs(saved.x-after.x)).toBeLessThan(2);expect(Math.abs(saved.y-after.y)).toBeLessThan(2);
+  await actor.focus();await page.keyboard.press('ArrowLeft');expect((await actor.boundingBox())!.x).toBeLessThan(saved.x);
+  expect(await page.locator('body').evaluate(el=>getComputedStyle(el).paddingRight)).toBe('0px');
+});
+
+test('passeio automático, pausa e limites após redimensionar',async({page})=>{
+  await page.clock.install();await page.addInitScript(()=>{localStorage.setItem('kerski.pet.v1',JSON.stringify({x:.8,y:.8,roam:true}));Math.random=()=>.2});
+  await page.goto('/');const pet=page.getByTestId('nimbo');await expect(pet).toBeVisible();
+  // Empty background isolates locomotion from obstacle avoidance.
+  await page.addStyleTag({content:'main,header{display:none!important}'});
+  const before=(await pet.boundingBox())!;await page.clock.runFor(11000);const after=(await pet.boundingBox())!;
+  expect(Math.hypot(after.x-before.x,after.y-before.y)).toBeGreaterThan(20);
+  await page.getByRole('button',{name:'Opções do Nimbo'}).click();await page.getByLabel('Passear pela tela').uncheck();await page.getByRole('button',{name:'Fechar opções do Nimbo'}).click();
+  const stopped=(await pet.boundingBox())!;await page.clock.runFor(10000);expect((await pet.boundingBox())!.x).toBeCloseTo(stopped.x,0);
+  await page.setViewportSize({width:360,height:500});const resized=(await pet.boundingBox())!;expect(resized.x).toBeGreaterThanOrEqual(0);expect(resized.x+resized.width).toBeLessThanOrEqual(360);expect(resized.y+resized.height).toBeLessThanOrEqual(500);
 });
 
 test('idle dorme e eventos de falha e conclusão têm prioridade',async({page})=>{

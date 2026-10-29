@@ -43,7 +43,8 @@ async def connect(reader, writer):
             remote.close()
 
 async def main():
-    server = await asyncio.start_server(connect,'0.0.0.0',8888,limit=8192)
+    import os
+    server = await asyncio.start_server(connect,os.getenv('EGRESS_HOST','0.0.0.0'),8888,limit=8192)
     async with server:
         await server.serve_forever()
 

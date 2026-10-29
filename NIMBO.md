@@ -21,18 +21,19 @@ As skills frontend-design e vercel-react-best-practices orientaram identidade, c
 | Arquivo | Função |
 | --- | --- |
 | `character.tsx` | Arte, gradientes, anatomia e articulações. |
-| `motion.ts` | Nove estados, poses, prioridades e blending exponencial. |
+| `motion.ts` | Dez estados, poses, prioridades e blending exponencial. |
 | `nimbo.tsx` | Comportamento, interações, persistência, áudio e renderização. |
 | `events.ts` | Eventos tipados emitidos pela página. |
-| `pet.css` | Área reservada, adaptação móvel e controles. |
+| `pet.css` | Posicionamento flutuante, adaptação móvel e controles. |
+| `wander.ts` | Passeio em dois eixos, limites da janela e prevenção de colisão com controles. |
 
 ## Movimento e comportamento
 
-O rig separa corpo, cabeça, orelhas, braços, pés e cauda. Olhos têm pálpebra e pupilas independentes; sobrancelhas rotacionam e a boca altera sua curva Bézier. Respiração e cauda usam fases distintas; piscadas têm intervalo variável. Saltos incluem antecipação, deformação moderada e retorno. Há no máximo três brilhos vetoriais na comemoração.
+O rig separa corpo, cabeça, orelhas, braços, pés e cauda. Olhos têm pálpebra e pupilas independentes; sobrancelhas rotacionam e a boca altera sua curva Bézier. Respiração, cauda e pequenos movimentos assimétricos das orelhas usam fases distintas; piscadas têm intervalo variável. Saltos incluem antecipação, deformação moderada e retorno. Há no máximo três brilhos vetoriais na comemoração.
 
 O motor aproxima a pose atual da pose-alvo com suavização dependente do tempo. Interações podem interromper clips; comportamentos espontâneos não substituem reações prioritárias. Durante tarefas de mídia não há cochilo ou brincadeira espontânea. A conclusão vem do estado da tarefa, não de um temporizador de progresso.
 
-O arrasto fica restrito à área reservada, vertical no desktop e menor no celular. Não há colisão física global nem deslocamento livre por cima da interface. O olhar é limitado. A inatividade leva ao cochilo; ações esporádicas usam intervalos aleatórios controlados.
+O arrasto é livre em dois eixos no desktop e no celular, limitado à janela e persistido em coordenadas proporcionais. As setas movem o pet quando ele tem foco. O passeio automático usa passos alternados, balanço de braços, cauda com atraso e orientação para o destino. Pausa em menus, foco, hover, arrasto, processamento e repouso; verifica controles antes de cada passo. O usuário pode estacioná-lo desativando Passear pela tela. Não há simulação física global; posicionamento manual pode cobrir um controle, por isso esconder/minimizar permanece acessível. O olhar é limitado. A inatividade leva ao cochilo; ações esporádicas usam intervalos aleatórios controlados.
 
 ## Acessibilidade, som e desempenho
 

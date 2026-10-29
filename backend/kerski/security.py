@@ -23,7 +23,7 @@ def validate_url(value: str) -> tuple[str, str]:
             return f'https://www.youtube.com/watch?v={ident}', platform
         if platform == 'Instagram' and not re.fullmatch(r'/(reel|reels|p)/[A-Za-z0-9_-]+/?', path):
             raise ValueError()
-        if platform == 'TikTok' and not (re.fullmatch(r'/@[\w.]+/video/\d+/?', path) or (host in {'vm.tiktok.com','vt.tiktok.com'} and re.fullmatch(r'/[A-Za-z0-9]+/?', path))):
+        if platform == 'TikTok' and not (re.fullmatch(r'/@[\w.-]+/video/\d+/?', path) or re.fullmatch(r'/t/[A-Za-z0-9_]+/?', path) or (host in {'vm.tiktok.com','vt.tiktok.com'} and re.fullmatch(r'/[A-Za-z0-9]+/?', path))):
             raise ValueError()
         return urlunsplit(('https', host, path, '', '')), platform
     except (ValueError, TypeError):

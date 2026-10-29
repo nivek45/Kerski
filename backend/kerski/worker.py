@@ -5,7 +5,9 @@ import shutil
 import signal
 import time
 from .store import connection, read, update, ROOT, MAX_BYTES
-from .media import extract, metadata, download
+from .media import extract, metadata, download, options
+import yt_dlp
+from .errors import describe_error
 
 def execute(ident):
     if os.name == 'posix':
@@ -22,15 +24,20 @@ def execute(ident):
     try:
         state = 'analyzing' if job['kind']=='analysis' else 'downloading'
         update(r, ident, status=state)
-        info = extract(job['payload']['url'])
-        if job['kind'] == 'analysis':
-            update(r, ident, status='ready', result=metadata(info, job['payload']['platform'],job['payload']['url']))
-        else:
-            files = download(r, ident, directory, info, job['payload'])
-            update(r, ident, status='ready', percent=100, files=files)
+        with yt_dlp.YoutubeDL(options()) as session:
+            info = extract(job['payload']['url'], session)
+            if job['kind'] == 'analysis':
+                update(r, ident, status='ready', result=metadata(info, job['payload']['platform'],job['payload']['url']))
+            else:
+                files = download(r, ident, directory, info, job['payload'], session)
+                update(r, ident, status='ready', percent=100, files=files)
     except Exception as exc:
         # Extractor messages can contain signed URLs or other remote data.
-        message = str(exc) if isinstance(exc, ValueError) else 'Não foi possível acessar ou processar este conteúdo. Ele pode estar restrito, removido ou temporariamente indisponível.'
+        message = describe_error(exc)
+        import traceback
+        frames = traceback.extract_tb(exc.__traceback__)
+        print(json.dumps({'event':'job_error','type':type(exc).__name__,
+                          'location':f'{os.path.basename(frames[-1].filename)}:{frames[-1].lineno}' if frames else None}),flush=True)
         update(r, ident, status='failed', error=message[:400])
     finally:
         current = read(r, ident)
@@ -49,7 +56,12 @@ def stop(process):
             except ProcessLookupError:
                 pass
         else:
-            process.kill()
+            # Include FFmpeg/Node descendants when canceling a Windows job.
+            import subprocess
+            subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                           capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            if process.is_alive():
+                process.kill()
         process.join(timeout=5)
 
 def cleanup(r):

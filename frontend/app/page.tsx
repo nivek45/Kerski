@@ -7,13 +7,13 @@ import { notifyPet } from '@/components/pet/events';
 const Nimbo = dynamic(() => import('@/components/pet/nimbo'), { ssr: false });
 
 type Format = {id:string; ext:string; video:boolean; audio:boolean; height:number|null; fps:number|null; hdr:string|null; vcodec:string; acodec:string; bitrate:number|null; size:number|null};
-type Media = {title:string; platform:string; url:string; duration:number; thumbnail:string|null; formats:Format[]};
+type Media = {title:string; platform:string; url:string; duration:number|null; thumbnail:string|null; formats:Format[]};
 type Job = {id:string; status:string; error?:string; result?:Media; percent:number|null; stream_percent?:number|null; stream?:number; stream_count?:number; downloaded:number; total?:number|null; speed:number|null; expires_at:number; files:{name:string;size:number}[]};
 type Mode = 'combined'|'video'|'audio'|'separate';
 const modes = [{id:'combined',label:'Vídeo + áudio',icon:Film},{id:'video',label:'Só vídeo',icon:Video},{id:'audio',label:'Só áudio',icon:AudioLines},{id:'separate',label:'Separados',icon:Layers2}] as const;
 const states:Record<string,string> = {queued:'Na fila de processamento',analyzing:'Consultando os formatos na fonte',downloading:'Baixando os arquivos',processing:'Preparando seu arquivo',ready:'Pronto para salvar',failed:'Não foi possível concluir',canceled:'Tarefa cancelada',expired:'Arquivo expirado'};
 const bytes = (n:number|null|undefined) => !n ? '—' : n>=1024**3 ? `${(n/1024**3).toFixed(1)} GB` : `${(n/1024**2).toFixed(1)} MB`;
-const duration = (n:number) => `${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,'0')}`;
+const duration = (n:number|null) => n == null ? 'Duração não informada' : `${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,'0')}`;
 async function api<T>(path:string, body?:unknown):Promise<T> {
   const res = await fetch(`/api${path}`,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
   const data = await res.json().catch(()=>null);

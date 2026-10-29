@@ -1,7 +1,7 @@
-export type Mood='idle'|'curious'|'happy'|'excited'|'confused'|'sad'|'sleepy'|'surprised'|'playful';
+export type Mood='idle'|'curious'|'happy'|'excited'|'confused'|'sad'|'sleepy'|'surprised'|'playful'|'walking';
 export type Pose={y:number;tilt:number;sx:number;sy:number;head:number;earL:number;earR:number;armL:number;armR:number;tail:number;eye:number;smile:number;brow:number;foot:number;spark:number};
 export const neutral:Pose={y:0,tilt:0,sx:1,sy:1,head:0,earL:0,earR:0,armL:0,armR:0,tail:0,eye:1,smile:4,brow:0,foot:0,spark:0};
-export const moods:Record<Mood,{duration:number;priority:number}>={idle:{duration:0,priority:0},curious:{duration:2600,priority:1},happy:{duration:2300,priority:2},excited:{duration:3200,priority:4},confused:{duration:2500,priority:3},sad:{duration:3000,priority:3},sleepy:{duration:0,priority:0},surprised:{duration:1900,priority:2},playful:{duration:2700,priority:1}};
+export const moods:Record<Mood,{duration:number;priority:number}>={idle:{duration:0,priority:0},walking:{duration:30000,priority:0},curious:{duration:2600,priority:1},happy:{duration:2300,priority:2},excited:{duration:3200,priority:4},confused:{duration:2500,priority:3},sad:{duration:3000,priority:3},sleepy:{duration:0,priority:0},surprised:{duration:1900,priority:2},playful:{duration:2700,priority:1}};
 const sin=Math.sin;
 /** Authored pose clips with anticipation, main action and recovery; radians for wave phases. */
 export function poseFor(mood:Mood,elapsed:number,time:number,reduced=false):Pose {
@@ -15,8 +15,10 @@ export function poseFor(mood:Mood,elapsed:number,time:number,reduced=false):Pose
     return p;
   }
   const t=elapsed/1000;
-  p.sy=1+sin(time/650)*.012;p.sx=1-sin(time/650)*.006;p.tail=sin(time/1050)*6;p.head=sin(time/2400)*2;
+  p.sy=1+sin(time/650)*.012;p.sx=1-sin(time/650)*.006;p.tail=sin(time/1050)*6+sin(time/430)*1.4;p.head=sin(time/2400)*2;
+  const twitch=Math.pow(Math.max(0,sin(time/3600)),18);p.earL=-twitch*7;p.earR=sin(time/4200)*2;
   switch(mood){
+    case 'walking':{const step=sin(t*8);p.y=-Math.abs(step)*3;p.tilt=step*3;p.foot=step*18;p.armL=-step*16;p.armR=step*16;p.head=-step*3;p.tail=sin(t*8-1)*13;p.earL=sin(t*8-.4)*4;p.earR=-p.earL;break;}
     case 'curious':p.head=-10+sin(t*2)*3;p.earL=-12;p.earR=8;p.brow=4;break;
     case 'happy':p.smile=11;p.eye=.65;p.head=sin(t*5)*5;p.tail=sin(t*10)*17;p.armL=-10;p.armR=10;break;
     case 'excited':{

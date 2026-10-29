@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import subprocess
 import zipfile
+from contextlib import nullcontext
 import yt_dlp
 from .security import safe_name
 from .store import MAX_BYTES, MAX_DURATION, update
@@ -13,14 +14,14 @@ def options():
         raise RuntimeError('O proxy de saída seguro não está configurado.')
     return dict(proxy=proxy, quiet=True, noprogress=True, no_warnings=True, noplaylist=True, socket_timeout=20, retries=2, fragment_retries=2, max_filesize=MAX_BYTES, cachedir=False, skip_unavailable_fragments=False, allowed_extractors=['youtube.*','instagram.*','tiktok.*'], remote_components=[], js_runtimes={'node':{}}, enable_file_urls=False)
 
-def extract(url):
-    with yt_dlp.YoutubeDL(options()) as ydl:
+def extract(url, session=None):
+    with nullcontext(session) if session is not None else yt_dlp.YoutubeDL(options()) as ydl:
         info = ydl.extract_info(url, download=False)
     if not info or info.get('_type') in {'playlist','multi_video'} or info.get('is_live') or info.get('has_drm'):
         raise ValueError('Este conteúdo não está disponível para download individual.')
     duration = info.get('duration')
-    if not duration or duration > MAX_DURATION:
-        raise ValueError('O vídeo não tem duração conhecida ou excede o limite de duração.')
+    if duration is not None and duration > MAX_DURATION:
+        raise ValueError('O vídeo excede o limite de duração.')
     return info
 
 def formats(info):
@@ -28,8 +29,9 @@ def formats(info):
     for f in info.get('formats', []):
         if f.get('has_drm') or f.get('protocol') not in {'https','http','m3u8_native'}:
             continue
-        video = f.get('vcodec') not in {None,'none'}
-        audio = f.get('acodec') not in {None,'none'}
+        # Extractors use "none" for absent tracks; missing codecs mean unknown.
+        video = f.get('vcodec') != 'none' and f.get('ext') not in {'m4a','mp3','opus','aac','wav','flac'}
+        audio = f.get('acodec') != 'none'
         if not video and not audio:
             continue
         size = f.get('filesize') or f.get('filesize_approx')
@@ -43,7 +45,7 @@ def metadata(info, platform, url):
     if not available:
         raise ValueError('Nenhum formato acessível foi encontrado para este conteúdo.')
     thumb = info.get('thumbnail', '')
-    return dict(title=str(info.get('title') or 'Vídeo')[:300], source_id=str(info.get('id',''))[:100], platform=platform, url=url, duration=info['duration'], thumbnail=thumb if thumb.startswith('https://') else None, formats=available)
+    return dict(title=str(info.get('title') or 'Vídeo')[:300], source_id=str(info.get('id',''))[:100], platform=platform, url=url, duration=info.get('duration'), thumbnail=thumb if thumb.startswith('https://') else None, formats=available)
 
 def choose(available, mode, video_id=None, audio_id=None):
     videos = [f for f in available if f['video']]
@@ -122,7 +124,12 @@ def process_streams(directory, title, vpath, apath, request):
         raise ValueError('Os arquivos gerados excedem o limite total de tamanho.')
     return [dict(name=f.name, size=f.stat().st_size) for f in files]
 
-def download(r, ident, directory, info, request):
+def stream_info(info):
+    # extract_info(download=False) already selects a default merged format.
+    # Its requested_formats would override our single-stream selection in process_info.
+    return {k:v for k,v in info.items() if k not in {'requested_formats','requested_downloads'}}
+
+def download(r, ident, directory, info, request, session=None):
     v, a = choose(formats(info), request['mode'], request['video_id'], request['audio_id'])
     selected = {f['id']:f for f in (v,a) if f}
     paths = {}
@@ -136,8 +143,11 @@ def download(r, ident, directory, info, request):
             update(r, ident, downloaded=current+completed_bytes, total=total+completed_bytes if total and index==len(selected)-1 else None, percent=None, stream=index+1, stream_count=len(selected), stream_percent=min(100,round(100*current/total,1)) if total else None, speed=d.get('speed'))
         opts = options() | dict(format=f['id'], outtmpl=str(directory / f'stream-{index}.%(ext)s'), progress_hooks=[hook], fixup='never', hls_prefer_native=True)
         with yt_dlp.YoutubeDL(opts) as ydl:
+            if session is not None:
+                for cookie in session.cookiejar:
+                    ydl.cookiejar.set_cookie(cookie)
             # Fresh metadata is kept inside the trusted worker, never accepted from the client.
-            ydl.process_ie_result(dict(info), download=True)
+            ydl.process_ie_result(stream_info(info), download=True)
         matches = [p for p in directory.glob(f'stream-{index}.*') if p.suffix not in {'.part','.ytdl'}]
         if len(matches) != 1:
             raise ValueError('A fonte não entregou o arquivo completo.')

@@ -58,7 +58,7 @@ Para um Chrome já instalado, defina `PLAYWRIGHT_EXECUTABLE_PATH` com o caminho 
 - Separados: entrega os dois arquivos e, opcionalmente, um ZIP sem recompressão.
 - WAV e FLAC não recuperam informação perdida em uma fonte comprimida.
 - Não há upscale, remoção de marca-d'água, importação de cookies, login em plataformas ou desbloqueio de DRM.
-- Lives, playlists, fontes sem duração conhecida e conteúdos que exigem autenticação não são suportados nesta versão.
+- Lives, playlists e conteúdos que exigem autenticação não são suportados nesta versão. A ausência de duração nos metadados não bloqueia o download; a duração real é conferida com FFprobe antes da entrega, mantendo limites de tamanho e tempo de execução.
 
 ## Limites operacionais
 

@@ -12,7 +12,7 @@ Análise, download e processamento de mídia autorizada, com uma interface discr
 
 ![Kerski no desktop, tema escuro, com Nimbo na área lateral](previews/nimbo-desktop.png)
 
-> **Versão 0.1 — em validação.** O projeto contém extração e processamento reais. Um vídeo autorizado do YouTube foi baixado e processado em 1080p/60 fps. A execução completa em Docker, o suporte real a Instagram/TikTok e os requisitos de operação pública ainda precisam de validação. Publicar este repositório não significa que o aplicativo já esteja hospedado ou pronto para produção.
+> **Versão 0.1 — em validação.** Downloads autorizados do YouTube e Instagram foram concluídos no Windows com Redis real, FFmpeg e entrega pela API. A execução em Docker, o suporte real a TikTok e os requisitos de operação pública ainda precisam de validação. Publicar este repositório não significa que o aplicativo já esteja hospedado ou pronto para produção.
 
 ## Sobre o projeto
 
@@ -49,7 +49,7 @@ As imagens são capturas reais da aplicação. O design usa preto profundo, supe
   <img src="previews/mobile-light.png" width="300" alt="Kerski no celular, tema claro" />
 </p>
 
-No celular, os controles se reorganizam e o pet ocupa uma área própria no fluxo da página. No desktop, uma faixa lateral mantém o personagem fora da área dos botões principais.
+No celular e no desktop, o Nimbo flutua pela tela sem alterar o layout. Você pode arrastá-lo nas duas direções, estacioná-lo, minimizar ou esconder.
 
 ## Funcionalidades
 
@@ -77,10 +77,10 @@ Converter uma fonte comprimida para WAV ou FLAC não recupera detalhes perdidos.
 | --- | --- |
 | YouTube | Análise, download e quatro modalidades testados com um vídeo autorizado. Não é garantia de compatibilidade universal. |
 | YouTube Shorts | URLs reconhecidas e extrator configurado; sem teste real separado de Shorts. |
-| Instagram Reels e vídeos | URLs reconhecidas e extrator configurado; teste real autorizado pendente. |
+| Instagram Reels e vídeos | Um post de vídeo autorizado validado até a entrega do arquivo em 1080×1920/60 fps. Não é garantia universal. |
 | TikTok | URLs reconhecidas e extrator configurado; teste real autorizado pendente. |
 
-Lives, playlists, fontes sem duração conhecida e conteúdo que exige autenticação não fazem parte do suporte atual. Não há importação de cookies, desbloqueio de DRM ou remoção de marcas-d'água incorporadas. Use apenas conteúdo próprio ou autorizado.
+Lives, playlists e conteúdo que exige autenticação não fazem parte do suporte atual. Vídeos sem duração informada podem ser baixados dentro dos limites de tempo e tamanho; a duração real é verificada por FFprobe antes da entrega. Não há importação de cookies do navegador, desbloqueio de DRM ou remoção de marcas-d'água incorporadas. Use apenas conteúdo próprio ou autorizado.
 
 ## Nimbo, o companheiro do Kerski
 
@@ -88,7 +88,7 @@ Lives, playlists, fontes sem duração conhecida e conteúdo que exige autentica
 
 O Nimbo é um pequeno mustelídeo imaginário, com pelagem grafite, focinho claro, orelhas assimétricas, olhos âmbar e cauda larga com ponta de fita. Foi desenhado em vetores para este projeto; não utiliza modelo de personagem ou GIF pronto.
 
-São nove estados: **idle, curioso, feliz, animado, confuso, triste, sonolento, surpreso e brincalhão**. As poses combinam respiração, piscadas variáveis, olhar limitado, orelhas, braços, pés e cauda, antecipação de saltos e recuperação após cada ação.
+São dez estados: **idle, passeando, curioso, feliz, animado, confuso, triste, sonolento, surpreso e brincalhão**. As poses combinam respiração, piscadas variáveis, olhar limitado, orelhas, braços, pés e cauda, antecipação de saltos e recuperação após cada ação.
 
 O motor interpola poses de um rig SVG, com curvas faciais e articulações atualizadas diretamente. Não aplica apenas uma transformação CSS ao desenho inteiro. O loop é limitado a 30 fps e não provoca uma renderização React a cada frame.
 
@@ -102,10 +102,10 @@ O motor interpola poses de um rig SVG, com curvas faciais e articulações atual
 | Mudança de tema | Surpresa com a iluminação. |
 | Clique, toque, Enter ou Espaço | Reação variável, com comemoração rara. |
 | Cursor suave sobre o pet | Carinho. |
-| Arrasto | Deslocamento limitado à área segura, com posição persistida. |
+| Arrasto | Deslocamento livre nos dois eixos, limitado à janela e com posição persistida; também pelas setas do teclado. |
 | Inatividade | Cochilo após cerca de 50 segundos. |
 
-O menu de três pontos, ou botão direito sobre o personagem, permite escolher tamanho e pelagem, reduzir animações, habilitar som, restaurar posição ou ocultar. Também é possível minimizar. Para reativá-lo depois de ocultar: **Configurações → Mostrar Nimbo**.
+O menu de três pontos, ou botão direito sobre o personagem, permite ativar ou pausar o passeio automático, escolher tamanho e pelagem, reduzir animações, habilitar som, restaurar posição ou ocultar. O botão X esconde o pet diretamente. O passeio automático evita controles e pausa durante interações e tarefas; o arrasto manual é livre. Também é possível minimizar. Para reativá-lo depois de ocultar: **Configurações → Mostrar Nimbo**.
 
 Os sons são breves, sintetizados e **desativados por padrão**. Mesmo quando habilitados, só são produzidos ao tocar diretamente no personagem; não há reprodução automática em downloads. As preferências ficam em `localStorage`, sem envio a um servidor.
 
@@ -266,7 +266,7 @@ python -m pip install -r requirements-dev.txt -c requirements-tested.txt
 python -m pytest -q
 ```
 
-A suíte validada tem **62 testes**. A mídia é gerada localmente e os testes de estado/fila usam FakeRedis. Isso não substitui a validação operacional de Redis e containers reais.
+A suíte validada tem **67 testes**. A mídia é gerada localmente e os testes de estado/fila usam FakeRedis. Os dois downloads documentados em 29/10/2026 usaram Redis real no Windows. A operação em containers ainda precisa ser validada.
 
 ### Interface e pet
 
@@ -279,7 +279,7 @@ npm run typecheck
 npm run build
 ```
 
-`PLAYWRIGHT_EXECUTABLE_PATH` pode apontar para um Chrome instalado. A suíte validada contém **30 testes de navegador** em desktop e viewport móvel. Os testes cobrem quatro modos, erros, cancelamento, temas, layout móvel, pet, persistência, arrasto, repouso e pausa. As respostas de plataforma são substituídas por fixtures somente nos testes de interface.
+`PLAYWRIGHT_EXECUTABLE_PATH` pode apontar para um Chrome instalado. A suíte validada contém **34 testes de navegador** em desktop e viewport móvel. Os testes cobrem quatro modos, erros, cancelamento, temas, layout móvel, pet, persistência, arrasto, repouso e pausa. As respostas de plataforma são substituídas por fixtures somente nos testes de interface.
 
 ## Segurança e uso responsável
 
@@ -301,7 +301,7 @@ Antes de expor a aplicação, valide o Compose e configure TLS, proteção de bo
 - [x] Nimbo original, rig, comportamento e preferências.
 - [ ] Validar o fluxo completo com Redis e Docker.
 - [ ] Testar falhas, reinício e cancelamento de processos no Linux.
-- [ ] Validar Instagram, TikTok e Shorts com conteúdo autorizado.
+- [ ] Ampliar os testes de Instagram e validar TikTok e Shorts com conteúdo autorizado.
 - [ ] Medir carga, acessibilidade e desempenho em dispositivos físicos.
 - [ ] Preparar hospedagem pública, autenticação e limites por usuário.
 
